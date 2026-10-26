@@ -1,5 +1,4 @@
-from unittest.mock import patch
-from sqlalchemy.exc import SQLAlchemyError
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,6 +7,7 @@ from app.models import AuditRecord, UnderwritingRecord
 
 
 def save_result(db: Session, application, result: dict) -> None:
+    """Persist an underwriting result and its audit event atomically."""
     try:
         existing = db.get(
             UnderwritingRecord,
@@ -35,8 +35,19 @@ def save_result(db: Session, application, result: dict) -> None:
                 "risk_grade": result["risk_grade"],
                 "intake_status": result["intake_status"],
                 "fairness_status": result["fairness_status"],
+                "policy_evidence_status": result[
+                    "policy_evidence_status"
+                ],
+                "policy_evidence_validation": result[
+                    "policy_evidence_validation"
+                ],
+                "human_review_required": True,
+                "approved_for_lending": False,
                 "note": (
-                    "Audit payload excludes raw applicant financial inputs."
+                    "Decision-support demo only. Human underwriter "
+                    "review is required. This record does not "
+                    "authorize lending. Raw applicant financial "
+                    "inputs are excluded from audit details."
                 ),
             },
         )
@@ -68,34 +79,3 @@ def get_result(db: Session, application_id: str):
 def readiness(db: Session) -> bool:
     db.execute(select(1))
     return True
-
-
-def test_commit_failure_rolls_back_underwriting_and_audit_records():
-    body = payload()
-    application_id = body["application_id"]
-
-    with patch(
-        "app.repository.Session.commit",
-        side_effect=SQLAlchemyError("simulated commit failure"),
-    ):
-        response = client.post(
-            "/applications/underwrite",
-            json=body,
-            headers=AUTH_HEADERS,
-        )
-
-    assert response.status_code == 500
-
-    with SessionLocal() as db:
-        assert db.get(UnderwritingRecord, application_id) is None
-
-        audits = db.scalars(
-            select(AuditRecord).where(
-                AuditRecord.application_id == application_id
-            )
-        ).all()
-
-        assert audits == []
-
-        # The new session can still query the database.
-        assert db.execute(select(1)).scalar_one() == 1
