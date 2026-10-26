@@ -16,9 +16,21 @@ class UnderwritingRecord(Base):
 
 class AuditRecord(Base):
     __tablename__ = "audit_records"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    application_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    application_id: Mapped[str] = mapped_column(
+        String(80), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
     event_type: Mapped[str] = mapped_column(String(80), nullable=False)
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
     details_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    previous_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    event_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )

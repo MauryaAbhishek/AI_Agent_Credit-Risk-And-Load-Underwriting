@@ -183,3 +183,39 @@ def test_ltv_boundary_at_95_percent():
 
 def test_ltv_just_above_95_percent():
     assert risk_grade_for("30.00", "95.01") == "ELEVATED_DEMO_RISK"
+
+
+
+def test_audit_verify_requires_api_key():
+    response = client.get("/audit/verify", headers={})
+    assert response.status_code == 401
+
+
+def test_audit_verify_rejects_incorrect_api_key():
+    response = client.get(
+        "/audit/verify",
+        headers={"X-API-Key": "invalid-test-key"},
+    )
+    assert response.status_code == 401
+
+
+def test_audit_verify_returns_expected_response_shape():
+    response = client.get(
+        "/audit/verify",
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["status"] in {
+        "VERIFIED",
+        "INTEGRITY_ISSUES",
+        "NO_EVENTS",
+    }
+    assert isinstance(data["total_events"], int)
+    assert isinstance(data["valid"], bool)
+    assert isinstance(data["verified_count"], int)
+    assert isinstance(data["unverifiable_count"], int)
+    assert isinstance(data["errors"], list)
+    assert "note" in data

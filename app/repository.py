@@ -2,12 +2,13 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit_integrity import calculate_event_hash
 from app.config import settings
 from app.models import AuditRecord, UnderwritingRecord
 
 
 def save_result(db: Session, application, result: dict) -> None:
-    """Persist an underwriting result and its audit event atomically."""
+    """Persist an underwriting result and its hashed audit event atomically."""
     try:
         existing = db.get(
             UnderwritingRecord,
@@ -54,6 +55,37 @@ def save_result(db: Session, application, result: dict) -> None:
 
         db.add(record)
         db.add(audit)
+
+        # Assign the audit ID and creation timestamp before hashing.
+        db.flush()
+
+        # Continue the chain only when the immediately preceding
+        # audit event has a hash. Legacy unhashed events are preserved;
+        # a new chain segment starts after such a record.
+        previous_audit = db.scalar(
+            select(AuditRecord)
+            .where(AuditRecord.id != audit.id)
+            .order_by(AuditRecord.id.desc())
+            .limit(1)
+        )
+
+        previous_hash = (
+            previous_audit.event_hash
+            if previous_audit is not None
+            else None
+        )
+
+        audit.previous_hash = previous_hash
+        audit.event_hash = calculate_event_hash(
+            event_id=audit.id,
+            application_id=audit.application_id,
+            event_type=audit.event_type,
+            policy_version=audit.policy_version,
+            created_at=audit.created_at,
+            details=audit.details_json,
+            previous_hash=previous_hash,
+        )
+
         db.commit()
 
     except Exception:

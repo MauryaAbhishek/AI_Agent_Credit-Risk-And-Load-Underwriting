@@ -5,7 +5,8 @@ import pandas as pd
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import select, text
+from app.audit_integrity import verify_audit_chain
 from app.config import settings
 from app.logging_config import configure_logging
 from app.db import get_db
@@ -78,6 +79,70 @@ def run_workflow(application: LoanApplication) -> dict:
         "audit": result["audit"],
         "explanation_letter_draft": result["explanation"],
     }
+
+@app.get(
+    "/audit/verify",
+    dependencies=[Depends(require_api_key)],
+)
+def verify_audit_integrity(db: Session = Depends(get_db)):
+    """Verify stored audit hashes and links without exposing audit details."""
+    try:
+        records = db.scalars(
+            select(AuditRecord).order_by(AuditRecord.id.asc())
+        ).all()
+
+        events = [
+            {
+                "event_id": record.id,
+                "application_id": record.application_id,
+                "event_type": record.event_type,
+                "policy_version": record.policy_version,
+                "created_at": record.created_at,
+                "details": record.details_json,
+                "previous_hash": record.previous_hash,
+                "event_hash": record.event_hash,
+            }
+            for record in records
+        ]
+
+        verification = verify_audit_chain(events)
+
+        if not records:
+            status = "NO_EVENTS"
+        elif verification["valid"]:
+            status = "VERIFIED"
+        else:
+            status = "INTEGRITY_ISSUES"
+
+        logger.info(
+            "audit verification completed status=%s events=%s "
+            "verified=%s unverifiable=%s errors=%s",
+            status,
+            len(records),
+            verification["verified_count"],
+            verification["unverifiable_count"],
+            len(verification["errors"]),
+        )
+
+        return {
+            "status": status,
+            "total_events": len(records),
+            **verification,
+            "note": (
+                "Hash verification provides tamper evidence, not "
+                "proof against an attacker who can rewrite the entire "
+                "database and recompute its hashes. Legacy events without "
+                "hashes are not considered verified."
+            ),
+        }
+
+    except Exception as exc:
+        logger.exception("Audit integrity verification failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Audit verification failed; check server logs.",
+        ) from exc
+
 
 @app.post("/applications/underwrite", response_model=UnderwritingResponse, dependencies=[Depends(require_api_key)])
 def underwrite(application: LoanApplication, db: Session = Depends(get_db)):
