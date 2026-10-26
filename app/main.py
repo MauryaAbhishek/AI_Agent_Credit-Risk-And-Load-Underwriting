@@ -72,6 +72,8 @@ def run_workflow(application: LoanApplication) -> dict:
         "recommendation": result["decision"]["recommendation"],
         "conditions": result["decision"]["conditions"],
         "policy_evidence": result.get("policy_evidence", []),
+        "policy_evidence_status": result["risk"]["policy_evidence_status"],
+        "policy_evidence_validation": result["risk"]["policy_evidence_validation"],
         "fairness_status": result["audit"]["status"],
         "audit": result["audit"],
         "explanation_letter_draft": result["explanation"],

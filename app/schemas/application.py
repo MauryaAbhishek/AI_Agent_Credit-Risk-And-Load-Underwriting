@@ -35,6 +35,8 @@ class UnderwritingResponse(BaseModel):
     recommendation: str
     conditions: list[str]
     policy_evidence: list[dict[str, Any]]
+    policy_evidence_status: str
+    policy_evidence_validation: dict[str, Any]
     fairness_status: str
     audit: dict[str, Any]
     explanation_letter_draft: str
