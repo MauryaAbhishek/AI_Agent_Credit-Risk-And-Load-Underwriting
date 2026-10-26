@@ -72,3 +72,49 @@ def test_mixed_versions_are_not_accepted_as_valid_evidence():
 
     assert result["status"] == "VERSION_MISMATCH"
     assert result["approved_for_lending"] is False
+
+
+
+
+def test_invalid_evidence_is_never_approved_for_lending():
+    result = validate_policy_evidence([
+        evidence(text="# Policy\nNo required disclaimer.")
+    ])
+
+    assert result["status"] == "INVALID_EVIDENCE"
+    assert result["approved_for_lending"] is False
+
+
+def test_all_policy_validation_outcomes_deny_lending_approval():
+    cases = [
+        [],
+        [evidence(version="different-policy-version")],
+        [
+            evidence(
+                text="# Policy\nMissing required disclaimer."
+            )
+        ],
+        [evidence()],
+    ]
+
+    for policy_evidence in cases:
+        result = validate_policy_evidence(policy_evidence)
+
+        assert result["approved_for_lending"] is False
+
+
+def test_malformed_evidence_is_not_accepted():
+    result = validate_policy_evidence([
+        {
+            "id": "malformed",
+            "source": "",
+            "policy_version": settings.policy_version,
+            "text": "",
+            "distance": None,
+        }
+    ])
+
+    assert result["status"] == "INVALID_EVIDENCE"
+    assert result["evidence_count"] == 0
+    assert result["approved_for_lending"] is False
+
