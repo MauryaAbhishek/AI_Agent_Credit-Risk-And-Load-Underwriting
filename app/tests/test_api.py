@@ -47,12 +47,36 @@ def test_rejects_extra_protected_field():
     assert response.status_code == 422
 
 
+
 def test_underwriting():
     response = submit(payload())
 
     assert response.status_code == 200
-    assert response.json()["metrics"]["dti_pct"] == "35.00"
-    assert response.json()["recommendation"] == "REFER"
+
+    data = response.json()
+
+    # Core underwriting response
+    assert data["metrics"]["dti_pct"] == "35.00"
+    assert data["recommendation"] == "REFER"
+
+    # Policy evidence validation must be exposed by the API.
+    assert "policy_evidence_status" in data
+    assert data["policy_evidence_status"] in {
+        "UNAVAILABLE",
+        "VERSION_MISMATCH",
+        "INVALID_EVIDENCE",
+        "VALID_DEMO_ONLY",
+    }
+
+    validation = data["policy_evidence_validation"]
+    assert isinstance(validation, dict)
+    assert "status" in validation
+    assert "approved_for_lending" in validation
+    assert validation["approved_for_lending"] is False
+
+    # Demo policy evidence must never authorize real lending.
+    assert data["recommendation"] == "REFER"
+
 
 
 def test_duplicate_id_conflicts():
