@@ -1,0 +1,38 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.db
+.chroma/
+.pytest_cache/
+.coverage
+dist/
+build/
+
+# Python virtual environments
+venv/
+.venv/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Databases and vector stores
+*.db
+*.sqlite
+*.sqlite3
+.chroma/
+chroma_db/
+
+# Backups and generated files
+*backup*
+*.bak
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# macOS
+.DS_Store
